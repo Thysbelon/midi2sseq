@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include "SSeqConv.h"
 
 typedef struct
@@ -139,11 +140,11 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 
 					case EV_MARKER:
 					{
-						if (stricmp(midiev.text, "loopStart") == 0)
+						if (strcasecmp(midiev.text, "loopStart") == 0)
 						{
 							ev.cmd = CNV_LOOPSTART;
 							for (int j = 0; j < 16; j ++) chn[j].push_back(ev);
-						}else if (stricmp(midiev.text, "loopEnd") == 0)
+						}else if (strcasecmp(midiev.text, "loopEnd") == 0)
 						{
 							ev.cmd = CNV_LOOPEND;
 							for (int j = 0; j < 16; j ++) chn[j].push_back(ev);
@@ -182,7 +183,7 @@ bool SSeqConv::SaveToFile(const char* filename)
 	for (int i = 0; i < 16; i ++)
 		if (chnusage[i])
 		{
-			printf("Channel %d, %d event(s)\n", i+1, chn[i].size());
+			printf("Channel %d, %ld event(s)\n", i+1, chn[i].size());
 			usagemask |= 1 << i;
 			ntracks ++;
 		}
