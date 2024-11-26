@@ -22,11 +22,14 @@ int main(int argc, char* argv[])
 
 	{
 		MidiReader midi;
+		printf("Reading midi file...\n");
 		if (!midi.Load(argv[1])) return error("Invalid MIDI file!");
+		printf("Converting midi...\n");
 		if (!cnv.ConvertMidi(midi)) return error("Cannot convert MIDI events!");
 		// Free the midi data
 	}
 
+	printf("Saving sseq file...\n");
 	if (!cnv.SaveToFile(argv[2])) return error("Cannot save to file!");
 
 	return 0;

@@ -65,8 +65,12 @@ public:
 	{
 		uint value = 0;
 		uchar data = 0;
-		do
+		uint64_t whileCheck = 0;
+		do {
+			whileCheck++;
+			if (whileCheck % 10000 == 0){printf("whileCheck: %lu. value: %u. data: %u.\n", whileCheck, value, data);}
 			data = ReadUChar(), value = (value << 7) | ((uint)data & 0x7F);
+		}
 		while(data & 0x80);
 		return value;
 	}

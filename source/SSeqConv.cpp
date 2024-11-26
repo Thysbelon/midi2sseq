@@ -1,15 +1,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <string>
 #include <strings.h>
 #include "SSeqConv.h"
+
+const int8_t NOT_SET = 0x7f;
 
 typedef struct
 {
 	uint wait;
 	uint pos;
-	uint dataentry;
+	//uint dataentry;
+	int8_t RPNtype[2]={NOT_SET, NOT_SET};
 } TrackStat;
+
+uint64_t whileCheck = 0;
 
 static inline uint CnvTime(uint time, uint tpb)
 {
@@ -43,6 +49,9 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 
 			while (!trackst->wait)
 			{
+				whileCheck++;
+				if (whileCheck % 10000 == 0){printf("whileCheck: %lu. wait: %u. pos: %u.\n", whileCheck, trackst->wait, trackst->pos);}
+				
 				MidiEvent& midiev = track[trackst->pos];
 
 				CnvEvent ev;
@@ -84,15 +93,23 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 
 					case EV_CONTROLLER:
 					{
-						uint& dataentry = trackst->dataentry;
+						//uint& dataentry = trackst->dataentry;
+						//int8_t RPNtype[]={NOT_SET, NOT_SET};
 						switch(midiev.number)
 						{
 							case 6:
-								if (dataentry == 0)
-								{
-									ev.cmd = CNV_PITCHBENDRANGE;
-									ev.param1 = midiev.val;
+								//if (dataentry == 0)
+								if (trackst->RPNtype[0]==0) {
+									if (trackst->RPNtype[1]==0){
+										ev.cmd = CNV_PITCHBENDRANGE;
+										ev.param1 = midiev.val;
+									} else if (trackst->RPNtype[1]==2){
+										ev.cmd = CNV_TRANSPOSE;
+										ev.param1 = midiev.val - 32; // TODO: The transpose value can be negative, but ev.param1 is an unsigned char. Double check that the byte written to the sseq is correct.
+										// TEST
+									}
 								}
+								trackst->RPNtype[0]=NOT_SET; trackst->RPNtype[1]=NOT_SET;
 								break;
 							case 7:
 								ev.cmd = CNV_VOL;
@@ -107,13 +124,84 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								ev.param1 = midiev.val;
 								break;
 							case 100:
-								dataentry &= ~0x7F;
-								dataentry |= (uint)midiev.val;
+								//dataentry &= ~0x7F; // bitwise "and" assignment operator https://www.w3schools.com/c/tryc.php?filename=demo_oper_ass7 , and bitwise
+								//dataentry |= (uint)midiev.val;
+								trackst->RPNtype[0]=midiev.val;
 								break;
 							case 101:
-								dataentry &= ~(0x7F<<7);
-								dataentry |= (uint)midiev.val << 7;
+								//dataentry &= ~(0x7F<<7);
+								//dataentry |= (uint)midiev.val << 7;
+								trackst->RPNtype[1]=midiev.val;
 								break;
+							// start of new entries. TEST
+							case 1:
+								ev.cmd = CNV_MODDEPTH;
+								ev.param1 = midiev.val;
+								break;
+							case 5: // portamento time
+								ev.cmd = CNV_PORTAMENTOTIME;
+								ev.param1 = midiev.val;
+								break;
+							case 14:
+								ev.cmd = CNV_PRIORITY;
+								ev.param1 = midiev.val;
+								break;
+							// GotaSequenceLib reads undefined CC20 as pitch bend range. should this program also do that?
+							case 21: // undefined midi cc corresponding to sseq mod speed
+								ev.cmd = CNV_MODSPEED;
+								ev.param1 = midiev.val;
+								break;
+							case 22: // undefined midi cc corresponding to sseq mod type
+								ev.cmd = CNV_MODTYPE;
+								ev.param1 = midiev.val;
+								break;
+							case /*23*/ 3: // undefined midi cc corresponding to sseq mod range. TODO: what is mod range? How is it different from mod depth?
+								ev.cmd = CNV_MODRANGE;
+								ev.param1 = midiev.val;
+								break;
+							case 26: // undefined midi cc corresponding to sseq mod delay
+								ev.cmd = CNV_MODDELAY;
+								ev.param1 = midiev.val;
+								break;
+							case 126: // mono
+								ev.cmd = CNV_NOTEWAIT;
+								ev.param1 = 1;
+								break;
+							case 127: // poly
+								ev.cmd = CNV_NOTEWAIT;
+								ev.param1 = 0;
+								break;
+							case 84: // portamento control
+								ev.cmd = CNV_PORTAMENTOCTRL;
+								ev.param1 = midiev.val;
+								break;
+							case 65:
+								ev.cmd = CNV_PORTAMENTOSWITCH;
+								ev.param1 = midiev.val;
+								break;
+							case 73:
+								ev.cmd = CNV_ATTACKRATE;
+								ev.param1 = midiev.val;
+								break;
+							case 75:
+								ev.cmd = CNV_DECAYRATE;
+								ev.param1 = midiev.val;
+								break;
+							case 76:
+								ev.cmd = CNV_SUSTAINRATE;
+								ev.param1 = midiev.val;
+								break;
+							case 72:
+								ev.cmd = CNV_RELEASERATE;
+								ev.param1 = midiev.val;
+								break;
+							/*
+							case 9: // undefined
+								ev.cmd = CNV_SWEEPPITCH;
+								ev.param1 = midiev.val;
+								break;
+							*/
+							
 						}
 						if (ev.cmd) chn[midiev.chn].push_back(ev); //, chnusage[midiev.chn] = 1;
 						break;
@@ -129,7 +217,7 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 						break;
 					}
 
-					case EV_PATCH:
+					case EV_PATCH: // a.k.a. program change
 					{
 						ev.cmd = CNV_PATCH;
 						ev.param1 = midiev.patch;
@@ -143,11 +231,91 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 						if (strcasecmp(midiev.text, "loopStart") == 0)
 						{
 							ev.cmd = CNV_LOOPSTART;
-							for (int j = 0; j < 16; j ++) chn[j].push_back(ev);
+							for (int j = 0; j < 16; j ++) chn[j].push_back(ev); // push the loopStart event to every sseq channel.
 						}else if (strcasecmp(midiev.text, "loopEnd") == 0)
 						{
 							ev.cmd = CNV_LOOPEND;
 							for (int j = 0; j < 16; j ++) chn[j].push_back(ev);
+						} else { // TEST
+							std::string stringMarker(midiev.text);
+							if (stringMarker.substr(0, 8) == "?Random="){
+								std::string valString=stringMarker.substr(8);
+								size_t commaPos;
+								
+								commaPos=valString.find(",");
+								uint8_t commandByte=std::stoul(valString.substr(0, commaPos), nullptr, 16);
+								valString.erase(0,commaPos + 1);
+								commaPos=valString.find(",");
+								int16_t randMin=std::stoi(valString.substr(0, commaPos));
+								valString.erase(0,commaPos + 1);
+								int16_t randMax=std::stoi(valString);
+								
+								ev.cmd=CNV_RANDOM;
+								ev.param1=(uchar)commandByte;
+								ev.paramwide=(ushort)randMin;
+								ev.paramwide2=(ushort)randMax;
+							} else if (stringMarker.substr(0, 8) == "?UseVar=") {
+								std::string valString=stringMarker.substr(8);
+								size_t commaPos;
+								
+								commaPos=valString.find(",");
+								uint8_t commandByte=std::stoul(valString.substr(0, commaPos), nullptr, 16);
+								valString.erase(0,commaPos + 1);
+								uint8_t varNum=std::stoi(valString);
+								
+								ev.cmd=CNV_USEVAR;
+								ev.param1=(uchar)commandByte;
+								ev.param2=(uchar)varNum;
+							} else if (stringMarker.substr(0, 4) == "?If=") {
+								std::string valString=stringMarker.substr(4);
+								uint8_t commandByte=std::stoul(valString, nullptr, 16);
+								ev.cmd=CNV_IF;
+								ev.param1=(uchar)commandByte;
+							} else if (stringMarker.substr(0, 10) == "?AssignVar") {
+								std::string valString=stringMarker.substr(10);
+								size_t spacePos;
+								
+								spacePos=valString.find(" ");
+								uint8_t varNum=std::stoi(valString.substr(0, spacePos));
+								valString.erase(0,spacePos + 1);
+								spacePos=valString.find(" ");
+								std::string operation=valString.substr(0, spacePos);
+								valString.erase(0,spacePos + 1);
+								int16_t value=std::stoi(valString);
+								
+								const char* varMethodName[] = {
+									"=", "+=", "-=", "*=", "/=", "[Shift]", "[Rand]", "", 
+									"==", ">=", ">", "<=", "<", "!="
+								};
+								int operIndex=0;
+								for (operIndex=0; operIndex<14; operIndex++){
+									if (operation == (std::string)varMethodName[operIndex]) {
+										break;
+									}
+								}
+								ev.cmd = CNV_SETVAR + operIndex; // CNV vars must be in the correct order in SSeqConv.h
+								ev.param1=(uchar)varNum;
+								ev.paramwide = (ushort)value;
+							} else if (stringMarker.substr(0, 5) == "?Tie=") {
+								std::string valString=stringMarker.substr(5);
+								bool value = (valString == "On" || valString == "on") ? true : false;
+								
+								ev.cmd = CNV_TIE;
+								ev.param1 = (uchar)value;
+							} else if (stringMarker.substr(0, 10) == "?PrintVar=") {
+								std::string valString=stringMarker.substr(10);
+								uint8_t varNum=std::stoi(valString);
+								
+								ev.cmd = CNV_PRINTVAR;
+								ev.param1 = (uchar)varNum;
+							} else if (stringMarker.substr(0, 12) == "?SweepPitch=") {
+								std::string valString=stringMarker.substr(12);
+								int16_t value=std::stoi(valString);
+								
+								ev.cmd = CNV_SWEEPPITCH;
+								ev.paramwide = (ushort)value;
+							}
+							if (ev.cmd) chn[midiev.chn].push_back(ev);
 						}
 						break;
 					}
@@ -157,6 +325,16 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 						ev.cmd = CNV_TEMPO;
 						ev.paramwide = (ushort) midiev.tempo;
 						chn[0].push_back(ev);
+						chnusage[0] = 1;
+						break;
+					}
+					
+					case EV_SYSEX:
+					{
+						// TEST
+						ev.cmd = CNV_MASTERVOL;
+						ev.param1 = midiev.val;
+						chn[0].push_back(ev); // midi sysex events cannot be assigned to a specific channel. And it shouldn't matter which channel the CNV_MASTERVOL event is placed on.
 						chnusage[0] = 1;
 						break;
 					}
@@ -253,7 +431,7 @@ bool SSeqConv::SaveToFile(const char* filename)
 bool SSeqConv::SaveTrack(FileClass& f, CnvTrack& trinfo)
 {
 	// Notewait mode OFF
-	f.WriteUChar(0xC7); f.WriteUChar(0);
+	//f.WriteUChar(0xC7); f.WriteUChar(0); // Notewait should be determined by the midi
 	vector<CnvEvent>& data = *trinfo.trackdata;
 	uint lasttime = 0;
 	int loopOff = f.Tell() - 0x1C; // just in case
@@ -316,6 +494,7 @@ bool SSeqConv::SaveTrack(FileClass& f, CnvTrack& trinfo)
 				break;
 			case CNV_LOOPEND:
 				f.WriteUChar(0x94); // JUMP
+				// TODO: add option in mid2sseq to specify whether it should do loops as a 0x94 jump, or as 0xD4 loop start and 0xFC loop end; and/or have sseq2mid specify what type the original sseq used.
 				f.WriteUInt(loopOff);
 				break;
 			case CNV_TEMPO:
@@ -326,6 +505,185 @@ bool SSeqConv::SaveTrack(FileClass& f, CnvTrack& trinfo)
 				}
 				f.WriteUChar(0xE1); // TEMPO
 				f.WriteUShort(ev.paramwide);
+				break;
+			// start of new entries. TEST
+			case CNV_TRANSPOSE:
+				f.WriteUChar(0xC3);
+				f.WriteUChar(ev.param1);
+				break;
+			case CNV_MODDEPTH:
+				f.WriteUChar(0xCA);
+				f.WriteUChar(ev.param1);
+				break;
+			case CNV_PORTAMENTOTIME:
+				f.WriteUChar(0xCF);
+				f.WriteUChar(ev.param1);
+				break;
+			case CNV_PRIORITY:
+				f.WriteUChar(0xC6);
+				f.WriteUChar(ev.param1);
+				break;
+			case CNV_MODSPEED:
+				f.WriteUChar(0xCB);
+				f.WriteUChar(ev.param1);
+				break;
+			case CNV_MODTYPE:
+				f.WriteUChar(0xCC);
+				f.WriteUChar(ev.param1);
+				break;
+			case CNV_MODRANGE:
+				f.WriteUChar(0xCD);
+				f.WriteUChar(ev.param1);
+				break;
+			case CNV_MODDELAY: // s16
+				f.WriteUChar(0xE0);
+				//f.WriteUChar(ev.param1);
+				f.WriteUShort((ushort)ev.param1);
+				break;
+			case CNV_NOTEWAIT:
+				f.WriteUChar(0xC7);
+				f.WriteUChar(ev.param1);
+				break;
+			case CNV_PORTAMENTOCTRL:
+				f.WriteUChar(0xC9);
+				f.WriteUChar(ev.param1);
+				break;
+			case CNV_PORTAMENTOSWITCH:
+				f.WriteUChar(0xCE);
+				f.WriteUChar(ev.param1);
+				break;
+			case CNV_ATTACKRATE:
+				f.WriteUChar(0xD0);
+				f.WriteUChar(ev.param1);
+				break;
+			case CNV_DECAYRATE:
+				f.WriteUChar(0xD1);
+				f.WriteUChar(ev.param1);
+				break;
+			case CNV_SUSTAINRATE:
+				f.WriteUChar(0xD2);
+				f.WriteUChar(ev.param1);
+				break;
+			case CNV_RELEASERATE:
+				f.WriteUChar(0xD3);
+				f.WriteUChar(ev.param1);
+				break;
+			case CNV_SWEEPPITCH:
+				f.WriteUChar(0xE3);
+				//f.WriteUChar(ev.param1);
+				//f.WriteUShort((ushort)ev.param1);
+				f.WriteUShort(ev.paramwide);
+				break;
+			case CNV_RANDOM:
+				f.WriteUChar(0xA0);
+				f.WriteUChar(ev.param1);
+				f.WriteUShort(ev.paramwide);
+				f.WriteUShort(ev.paramwide2);
+				break;
+			case CNV_USEVAR:
+				f.WriteUChar(0xA1);
+				f.WriteUChar(ev.param1);
+				f.WriteUChar(ev.param2);
+				break;
+			case CNV_IF:
+				f.WriteUChar(0xA2);
+				f.WriteUChar(ev.param1);
+				break;
+			/*
+			case CNV_SETVAR:
+				f.WriteUChar(0xB0);
+				f.WriteUChar(ev.param1);
+				f.WriteUShort(ev.paramwide);
+				break;
+			case CNV_ADDVAR:
+				f.WriteUChar(0xB1);
+				f.WriteUChar(ev.param1);
+				f.WriteUShort(ev.paramwide);
+				break;
+			case CNV_SUBVAR:
+				f.WriteUChar(0xB2);
+				f.WriteUChar(ev.param1);
+				f.WriteUShort(ev.paramwide);
+				break;
+			case CNV_MULTVAR:
+				f.WriteUChar(0xB3);
+				f.WriteUChar(ev.param1);
+				f.WriteUShort(ev.paramwide);
+				break;
+			case CNV_DIVVAR:
+				f.WriteUChar(0xB4);
+				f.WriteUChar(ev.param1);
+				f.WriteUShort(ev.paramwide);
+				break;
+			case CNV_SHIFTVAR:
+				f.WriteUChar(0xB5);
+				f.WriteUChar(ev.param1);
+				f.WriteUShort(ev.paramwide);
+				break;
+			case CNV_RANDVAR:
+				f.WriteUChar(0xB6);
+				f.WriteUChar(ev.param1);
+				f.WriteUShort(ev.paramwide);
+				break;
+			case CNV_EQVAR:
+				f.WriteUChar(0xB8);
+				f.WriteUChar(ev.param1);
+				f.WriteUShort(ev.paramwide);
+				break;
+			case CNV_GRTEQVAR:
+				f.WriteUChar(0xB9);
+				f.WriteUChar(ev.param1);
+				f.WriteUShort(ev.paramwide);
+				break;
+			case CNV_GRTVAR:
+				f.WriteUChar(0xBA);
+				f.WriteUChar(ev.param1);
+				f.WriteUShort(ev.paramwide);
+				break;
+			case CNV_LESSEQVAR:
+				f.WriteUChar(0xBB);
+				f.WriteUChar(ev.param1);
+				f.WriteUShort(ev.paramwide);
+				break;
+			case CNV_LESSVAR:
+				f.WriteUChar(0xBC);
+				f.WriteUChar(ev.param1);
+				f.WriteUShort(ev.paramwide);
+				break;
+			case CNV_NOTVAR:
+				f.WriteUChar(0xBD);
+				f.WriteUChar(ev.param1);
+				f.WriteUShort(ev.paramwide);
+				break;
+			*/
+			case CNV_SETVAR:
+			case CNV_ADDVAR:
+			case CNV_SUBVAR:
+			case CNV_MULTVAR:
+			case CNV_DIVVAR:
+			case CNV_SHIFTVAR:
+			case CNV_RANDVAR:
+			case CNV_EQVAR:
+			case CNV_GRTEQVAR:
+			case CNV_GRTVAR:
+			case CNV_LESSEQVAR:
+			case CNV_LESSVAR:
+			case CNV_NOTVAR:
+				f.WriteUChar((ev.cmd - CNV_SETVAR) + 0xB0);
+				f.WriteUChar(ev.param1);
+				f.WriteUShort(ev.paramwide);
+				break;
+			case CNV_TIE:
+				f.WriteUChar(0xC8);
+				f.WriteUChar(ev.param1);
+				break;
+			case CNV_PRINTVAR:
+				f.WriteUChar(0xD6);
+				f.WriteUChar(ev.param1);
+				break;
+			case CNV_MASTERVOL:
+				f.WriteUChar(0xC2);
+				f.WriteUChar(ev.param1);
 				break;
 		}
 	}

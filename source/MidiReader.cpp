@@ -24,6 +24,7 @@ bool MidiReader::Load(const char* filename)
 
 	for (int i = 0; i < trkcnt; i ++)
 	{
+		printf("track %d\n", i);
 		tracks.push_back(vector<MidiEvent>());
 		vector<MidiEvent>& curtrack = tracks.back();
 		LoadTrack(f, curtrack);
@@ -35,13 +36,24 @@ bool MidiReader::Load(const char* filename)
 
 bool MidiReader::LoadTrack(FileClass& f, vector<MidiEvent>& track)
 {
+	printf("Loading track...\n");
 	if (f.ReadUInt() != TRACKMAGIC) return false;
 	f.Seek(4, SEEK_CUR);
 
 	int lastcmd = 0, cmd;
-	for(;;)
+	uint64_t infForCheck = 0;
+	for(;;) // This is an infinite loop
 	{
+		infForCheck++;
+		if (infForCheck % 100000 == 0){
+			//printf("infForCheck: %lu. cmd: 0x%X.\n", infForCheck, cmd);
+			printf("infForCheck: %lu.\n", infForCheck);
+			//if (cmd == 0) {break;}
+		}
+		
+		//printf("ReadVL...\n");
 		uint delta = f.ReadVL();
+		//printf("ReadVL finished.\n");
 		if (delta)
 		{
 			MidiEvent ev;
@@ -55,12 +67,12 @@ bool MidiReader::LoadTrack(FileClass& f, vector<MidiEvent>& track)
 		if (cmd < 0x80) f.Seek(-1, SEEK_CUR), cmd = lastcmd;
 		else lastcmd = cmd;
 
-		if (cmd != 0xFF)
+		if (cmd != 0xFF && cmd != 0xF0 && cmd != 0xF7)
 		{
 			ev.chn = cmd & 0xF;
 			switch(cmd & 0xF0)
 			{
-				case 0x90:
+				case 0x90: // event code
 					ev.cmd = EV_NOTEON;
 					ev.note = f.ReadUChar();
 					ev.vel = f.ReadUChar();
@@ -100,7 +112,7 @@ bool MidiReader::LoadTrack(FileClass& f, vector<MidiEvent>& track)
 					ev.valwide = (ushort)f.ReadUChar() | ((ushort)f.ReadUChar() << 7);
 					break;
 			}
-		}else
+		}else if (cmd == 0xFF) // seems like all meta events use FF
 		{
 			int metacmd = f.ReadUChar();
 			int metasize = f.ReadVL();
@@ -112,7 +124,7 @@ bool MidiReader::LoadTrack(FileClass& f, vector<MidiEvent>& track)
 				((char*)buf)[metasize] = 0; // done for strings
 			}
 
-			if (metacmd == 0x2F) break;
+			if (metacmd == 0x2F) break; // breaks the infinite loop
 
 			switch(metacmd)
 			{
@@ -138,6 +150,16 @@ bool MidiReader::LoadTrack(FileClass& f, vector<MidiEvent>& track)
 			}
 
 			if (buf) free(buf);
+		} else if (cmd == 0xF0 || cmd == 0xF7) {
+			ev.cmd = EV_SYSEX;
+			// byte sysexMasterVolume[] = { 0xF0, 0x7F, 0x7F, 0x04, 0x01, 0x00, (byte) volume, 0xF7 }
+			// volume is in the range 0-127
+			// a length byte is inserted in between the first and second byte of sysexMasterVolume.
+			// this sysex implementation only supports one sysex command: master volume.
+			for (int i=0; i<6; i++){
+				f.ReadUChar(); // discard 6 bytes.
+			}
+			ev.val = f.ReadUChar();
 		}
 
 		track.push_back(ev);

@@ -2,7 +2,8 @@
 
 .SUFFIXES:
 
-TARGET  := $(shell basename $(CURDIR))
+#TARGET  := $(shell basename $(CURDIR))
+TARGET  := midi2sseq
 BUILD   := build
 SOURCES := source
 
@@ -39,15 +40,15 @@ $(BUILD):
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
 clean:
-	@rm -fr $(BUILD) $(OUTPUT).exe
+	@rm -fr $(BUILD) $(OUTPUT).exe $(OUTPUT)
 
 else
 
-$(OUTPUT).exe: $(OFILES)
+$(OUTPUT): $(OFILES)
 
 -include $(DEPSDIR)/*.d
 
-%.exe:
+%: #%.exe: # produce a binary with no file extension (for linux) instead of a binary with a .exe file extension. TODO: create another makefile that compiles a Windows exe with llvm-mingw
 	@echo linking...
 	@$(LD) $(LDFLAGS) $(OFILES) -o $@
 	@$(STRIP) --strip-all $@

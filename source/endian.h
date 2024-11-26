@@ -5,10 +5,12 @@
 #define LITTLE_ENDIAN 0
 #define BYTE_ORDER LITTLE_ENDIAN
 #endif
+#include <stdint.h>
 
 #define uint unsigned int
 #define ushort unsigned short
 #define uchar unsigned char
+//#define uchar int8_t // TODO: change all instances of "uchar" to int8_t // this causes MidiReader::LoadTrack to go in an infinite loop
 
 /* For some reason these do not work...
 typedef unsigned int uint;
