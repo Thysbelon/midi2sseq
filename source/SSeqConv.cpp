@@ -13,6 +13,7 @@ typedef struct
 	uint pos;
 	//uint dataentry;
 	int8_t RPNtype[2]={NOT_SET, NOT_SET};
+	bool notewait=false;
 } TrackStat;
 
 uint64_t whileCheck = 0;
@@ -164,12 +165,18 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								ev.param1 = midiev.val;
 								break;
 							case 126: // mono
-								ev.cmd = CNV_NOTEWAIT;
-								ev.param1 = 1;
+								if (trackst->notewait == false) {
+									ev.cmd = CNV_NOTEWAIT;
+									ev.param1 = 1;
+									trackst->notewait = true;
+								}
 								break;
 							case 127: // poly
-								ev.cmd = CNV_NOTEWAIT;
-								ev.param1 = 0;
+								if (trackst->notewait == true){
+									ev.cmd = CNV_NOTEWAIT;
+									ev.param1 = 0;
+									trackst->notewait = false;
+								}
 								break;
 							case 84: // portamento control
 								ev.cmd = CNV_PORTAMENTOCTRL;
@@ -431,7 +438,8 @@ bool SSeqConv::SaveToFile(const char* filename)
 bool SSeqConv::SaveTrack(FileClass& f, CnvTrack& trinfo)
 {
 	// Notewait mode OFF
-	//f.WriteUChar(0xC7); f.WriteUChar(0); // Notewait should be determined by the midi
+	f.WriteUChar(0xC7); f.WriteUChar(0); // Notewait should be determined by the midi // UPDATE: nevermind. The default is "notewait on". Notewait off events *are* successfully converted back and forth between sseq2mid and midi2sseq, *but* if the notewait off event happens *at the same time* as some notes, the order can get messed up and place the notes *before* the notewait off, which causes the notes to play after eachother instead of at the same time and makes the entire rest of that track go out of sync.
+	// having midi2sseq write notewait off at the start of every song instead of leaving it to the midi *could* have negative consequences if a song is meant to play in notewait on mode, but this scenario seems unlikely. I think most DS composers used notewait off.
 	vector<CnvEvent>& data = *trinfo.trackdata;
 	uint lasttime = 0;
 	int loopOff = f.Tell() - 0x1C; // just in case
