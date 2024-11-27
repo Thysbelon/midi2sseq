@@ -37,11 +37,16 @@ To do
 
 ## How to Edit NDS Music
 
-**Note:** I was unable to compile a Windows build of ndstool. Windows users might be able to replace the steps that mention ndstool with [Tinke](https://github.com/pleonex/tinke/releases/tag/v0.9.2).
+Ready-to-run copies of ndstool can be downloaded from [Leseratte's website](https://wii.leseratte10.de/devkitPro/other-stuff/ndstool/). Scroll to the bottom and download the latest version for your OS. Decompress it, which will give you a **folder** named "ndstool-version-OS_arch.pkg". Go into the folder, then you should find ndstool on the path "opt/devkitpro/tools/bin/".
+
+[Guide on how to open command prompt in a certain folder on Windows](https://www.howtogeek.com/789662/how-to-open-a-cmd-window-in-a-folder-on-windows/).
+
+The terminal commands listed below are examples; please replace placeholders with the names of your files.  
+Instances of `./ndstool` are for linux, Windows users should type `.\ndstool`.
 
 - Use [VGMTrans](https://github.com/vgmtrans/vgmtrans) to find the song you want to edit and to rip the sound bank to sf2
 - Copy and paste the nds file to the same folder, and name the copy something like "Game (header).nds"
-- Run [ndstool](https://github.com/Thysbelon/ndstool) with the command `./ndstool -x "Game.nds" -d rom-files -9 arm9.bin -7 arm7.bin -y9 arm9overlay.bin  -y7 arm7overlay.bin  -y overlay-files -h "Game (header).nds"` to extract the rom's files
+- Run ndstool with the command `./ndstool -x "Game.nds" -d rom-files -9 arm9.bin -7 arm7.bin -y9 arm9overlay.bin  -y7 arm7overlay.bin  -y overlay-files -h "Game (header).nds"` to extract the rom's files
 - Run [SDATTool](https://github.com/froggestspirit/SDATTool) with `python3 SDATTool.py -u sound_data.sdat sdat_out` to extract the SDAT's files
 - Run [sseq2mid](https://github.com/Thysbelon/sseq2mid)
 - Edit the midi in your preferred midi editor
