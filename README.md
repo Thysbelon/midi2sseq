@@ -37,6 +37,8 @@ To do
 
 ## How to Edit NDS Music
 
+**Note:** I was unable to compile a Windows build of ndstool. Windows users might be able to replace the steps that mention ndstool with [Tinke](https://github.com/pleonex/tinke/releases/tag/v0.9.2).
+
 - Use [VGMTrans](https://github.com/vgmtrans/vgmtrans) to find the song you want to edit and to rip the sound bank to sf2
 - Copy and paste the nds file to the same folder, and name the copy something like "Game (header).nds"
 - Run [ndstool](https://github.com/Thysbelon/ndstool) with the command `./ndstool -x "Game.nds" -d rom-files -9 arm9.bin -7 arm7.bin -y9 arm9overlay.bin  -y7 arm7overlay.bin  -y overlay-files -h "Game (header).nds"` to extract the rom's files
