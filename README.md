@@ -23,7 +23,7 @@ Build prerequisites
 - Loop points via `loopStart` and `loopEnd` markers
 - Hopefully everything in [sequence.md](https://github.com/Thysbelon/midi2sseq/blob/master/sequence.md)
 
-Most midi event to sseq command conversions are implemented as Midi undefined CC and text markers. Currently, these are only documented in the [code of my fork of sseq2mid](https://github.com/Thysbelon/sseq2mid/blob/master/src/sseq2mid.c).
+Most midi event to sseq command conversions are implemented as Midi undefined CC and text markers. These are documented in the [README of my fork of sseq2mid](https://github.com/Thysbelon/sseq2mid?tab=readme-ov-file).
 
 <!--
 
