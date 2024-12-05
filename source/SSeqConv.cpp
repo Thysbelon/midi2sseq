@@ -245,8 +245,8 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 							for (int j = 0; j < 16; j ++) chn[j].push_back(ev);
 						} else { // TEST
 							std::string stringMarker(midiev.text);
-							if (stringMarker.substr(0, 8) == "?Random="){
-								std::string valString=stringMarker.substr(8);
+							if (stringMarker.substr(0, 7) == "Random:"){
+								std::string valString=stringMarker.substr(7);
 								size_t commaPos;
 								
 								commaPos=valString.find(",");
@@ -261,8 +261,8 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								ev.param1=(uchar)commandByte;
 								ev.paramwide=(ushort)randMin;
 								ev.paramwide2=(ushort)randMax;
-							} else if (stringMarker.substr(0, 8) == "?UseVar=") {
-								std::string valString=stringMarker.substr(8);
+							} else if (stringMarker.substr(0, 7) == "UseVar:") {
+								std::string valString=stringMarker.substr(7);
 								size_t commaPos;
 								
 								commaPos=valString.find(",");
@@ -273,21 +273,21 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								ev.cmd=CNV_USEVAR;
 								ev.param1=(uchar)commandByte;
 								ev.param2=(uchar)varNum;
-							} else if (stringMarker.substr(0, 4) == "?If=") {
-								std::string valString=stringMarker.substr(4);
+							} else if (stringMarker.substr(0, 3) == "If:") {
+								std::string valString=stringMarker.substr(3);
 								uint8_t commandByte=std::stoul(valString, nullptr, 16);
 								ev.cmd=CNV_IF;
 								ev.param1=(uchar)commandByte;
-							} else if (stringMarker.substr(0, 10) == "?AssignVar") {
+							} else if (stringMarker.substr(0, 10) == "AssignVar:") {
 								std::string valString=stringMarker.substr(10);
-								size_t spacePos;
+								size_t commaPos;
 								
-								spacePos=valString.find(" ");
-								uint8_t varNum=std::stoi(valString.substr(0, spacePos));
-								valString.erase(0,spacePos + 1);
-								spacePos=valString.find(" ");
-								std::string operation=valString.substr(0, spacePos);
-								valString.erase(0,spacePos + 1);
+								commaPos=valString.find(",");
+								uint8_t varNum=std::stoi(valString.substr(0, commaPos));
+								valString.erase(0,commaPos + 1);
+								commaPos=valString.find(",");
+								std::string operation=valString.substr(0, commaPos);
+								valString.erase(0,commaPos + 1);
 								int16_t value=std::stoi(valString);
 								
 								const char* varMethodName[] = {
@@ -303,20 +303,20 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								ev.cmd = CNV_SETVAR + operIndex; // CNV vars must be in the correct order in SSeqConv.h
 								ev.param1=(uchar)varNum;
 								ev.paramwide = (ushort)value;
-							} else if (stringMarker.substr(0, 5) == "?Tie=") {
-								std::string valString=stringMarker.substr(5);
+							} else if (stringMarker.substr(0, 4) == "Tie:") {
+								std::string valString=stringMarker.substr(4);
 								bool value = (valString == "On" || valString == "on") ? true : false;
 								
 								ev.cmd = CNV_TIE;
 								ev.param1 = (uchar)value;
-							} else if (stringMarker.substr(0, 10) == "?PrintVar=") {
-								std::string valString=stringMarker.substr(10);
+							} else if (stringMarker.substr(0, 9) == "PrintVar:") {
+								std::string valString=stringMarker.substr(9);
 								uint8_t varNum=std::stoi(valString);
 								
 								ev.cmd = CNV_PRINTVAR;
 								ev.param1 = (uchar)varNum;
-							} else if (stringMarker.substr(0, 12) == "?SweepPitch=") {
-								std::string valString=stringMarker.substr(12);
+							} else if (stringMarker.substr(0, 11) == "SweepPitch:") {
+								std::string valString=stringMarker.substr(11);
 								int16_t value=std::stoi(valString);
 								
 								ev.cmd = CNV_SWEEPPITCH;
