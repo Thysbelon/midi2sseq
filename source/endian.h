@@ -8,9 +8,11 @@
 #include <stdint.h>
 
 #define uint unsigned int
-#define ushort unsigned short
-#define uchar unsigned char
+//#define ushort unsigned short
+//#define uchar unsigned char
 //#define uchar int8_t // TODO: change all instances of "uchar" to int8_t // this causes MidiReader::LoadTrack to go in an infinite loop
+#define ushort uint16_t
+#define uchar uint8_t
 
 /* For some reason these do not work...
 typedef unsigned int uint;

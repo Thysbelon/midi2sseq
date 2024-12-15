@@ -1,6 +1,5 @@
 build/
 *.exe
-*.mid
 *.sseq
 *.o
 *.d

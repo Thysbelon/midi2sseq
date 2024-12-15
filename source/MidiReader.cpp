@@ -156,10 +156,12 @@ bool MidiReader::LoadTrack(FileClass& f, vector<MidiEvent>& track)
 			// volume is in the range 0-127
 			// a length byte is inserted in between the first and second byte of sysexMasterVolume.
 			// this sysex implementation only supports one sysex command: master volume.
+			// TODO: limit to F0 <length byte> 7F 7F 04 01 00 volume F7
 			for (int i=0; i<6; i++){
 				f.ReadUChar(); // discard 6 bytes.
 			}
 			ev.val = f.ReadUChar();
+			f.ReadUChar(); // discard final f7 byte.
 		}
 
 		track.push_back(ev);

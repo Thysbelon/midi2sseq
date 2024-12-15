@@ -37,6 +37,8 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 
 		for (int i = 0; i < ntracks; i ++)
 		{
+			//printf("i: %d\n", i);
+			
 			TrackStat* trackst = tracksts + i;
 
 			if (trackst->wait)
@@ -100,11 +102,14 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 						{
 							case 6:
 								//if (dataentry == 0)
+								// TODO: write a command line tool to reorder same position cc100, cc101, and cc6 in the midi file, so that they are always in the correct order
 								if (trackst->RPNtype[0]==0) {
 									if (trackst->RPNtype[1]==0){
+										printf("found pitch bend range. val: %u\n", midiev.val);
 										ev.cmd = CNV_PITCHBENDRANGE;
 										ev.param1 = midiev.val;
 									} else if (trackst->RPNtype[1]==2){
+										printf("found transpose. val: %u\n", midiev.val);
 										ev.cmd = CNV_TRANSPOSE;
 										ev.param1 = midiev.val - 32; // TODO: The transpose value can be negative, but ev.param1 is an unsigned char. Double check that the byte written to the sseq is correct.
 										// TEST
@@ -164,8 +169,9 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								ev.cmd = CNV_MODDELAY;
 								ev.param1 = midiev.val;
 								break;
-							case 126: // mono
+							case 126: // mono // TODO: study how DS games use mono; improve this code
 								if (trackst->notewait == false) {
+									printf("inserted notewait (true).\n");
 									ev.cmd = CNV_NOTEWAIT;
 									ev.param1 = 1;
 									trackst->notewait = true;
@@ -173,6 +179,7 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								break;
 							case 127: // poly
 								if (trackst->notewait == true){
+									printf("inserted notewait (false).\n");
 									ev.cmd = CNV_NOTEWAIT;
 									ev.param1 = 0;
 									trackst->notewait = false;
@@ -216,6 +223,7 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 
 					case EV_PITCHBEND:
 					{
+						// WARNING: midi pitch bend is a 14-bit integer, while sseq pitch bend is a 16-bit signed integer. Conversion cannot be completely lossless.
 						ev.cmd = CNV_PITCHBEND;
 						int pb = ((int)midiev.valwide - 0x2000) / 64;
 						ev.param1 = ((uint)pb) & 0xFF;
@@ -258,9 +266,13 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								int16_t randMax=std::stoi(valString);
 								
 								ev.cmd=CNV_RANDOM;
-								ev.param1=(uchar)commandByte;
+								ev.param1 = commandByte; // BUG: why does the value change from C4 to 7F even though I'm not changing it?
+								//ev.param1=commandByte;
 								ev.paramwide=(ushort)randMin;
 								ev.paramwide2=(ushort)randMax;
+								
+								printf("random: commandByte: %X, randMin: %d, randMax: %d. i: %d\n", commandByte, randMin, randMax, i);
+								printf("random: ev.param1: %X, ev.paramwide: %d, ev.paramwide2: %d. i: %d\n", ev.param1, (int16_t)ev.paramwide, (int16_t)ev.paramwide2, i);
 							} else if (stringMarker.substr(0, 7) == "UseVar:") {
 								std::string valString=stringMarker.substr(7);
 								size_t commaPos;
@@ -273,13 +285,17 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								ev.cmd=CNV_USEVAR;
 								ev.param1=(uchar)commandByte;
 								ev.param2=(uchar)varNum;
+								
+								printf("UseVar: commandByte: %X, varNum: %u. i: %d\n", commandByte, varNum, i);
 							} else if (stringMarker.substr(0, 3) == "If:") {
 								std::string valString=stringMarker.substr(3);
 								uint8_t commandByte=std::stoul(valString, nullptr, 16);
 								ev.cmd=CNV_IF;
 								ev.param1=(uchar)commandByte;
-							} else if (stringMarker.substr(0, 10) == "AssignVar:") {
-								std::string valString=stringMarker.substr(10);
+								
+								printf("If: commandByte: %X. i: %d\n", commandByte, i);
+							} else if (stringMarker.substr(0, 4) == "Var:") { // both assignment and comparison fall under this umbrella
+								std::string valString=stringMarker.substr(4);
 								size_t commaPos;
 								
 								commaPos=valString.find(",");
@@ -303,26 +319,35 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								ev.cmd = CNV_SETVAR + operIndex; // CNV vars must be in the correct order in SSeqConv.h
 								ev.param1=(uchar)varNum;
 								ev.paramwide = (ushort)value;
+								
+								printf("var com %d: varNum: %u, value: %d. i: %d\n", CNV_SETVAR + operIndex, varNum, value, i);
 							} else if (stringMarker.substr(0, 4) == "Tie:") {
 								std::string valString=stringMarker.substr(4);
 								bool value = (valString == "On" || valString == "on") ? true : false;
 								
 								ev.cmd = CNV_TIE;
 								ev.param1 = (uchar)value;
+								
+								printf("Tie: value: %d. i: %d\n", value, i);
 							} else if (stringMarker.substr(0, 9) == "PrintVar:") {
 								std::string valString=stringMarker.substr(9);
 								uint8_t varNum=std::stoi(valString);
 								
 								ev.cmd = CNV_PRINTVAR;
 								ev.param1 = (uchar)varNum;
+								
+								printf("PrintVar: varNum: %u. i: %d\n", varNum, i);
 							} else if (stringMarker.substr(0, 11) == "SweepPitch:") {
 								std::string valString=stringMarker.substr(11);
 								int16_t value=std::stoi(valString);
+								printf("sweep pitch: value: %d. i: %d\n", value, i);
 								
 								ev.cmd = CNV_SWEEPPITCH;
 								ev.paramwide = (ushort)value;
 							}
-							if (ev.cmd) chn[midiev.chn].push_back(ev);
+							int insertAt = i - 1;/*midi channels start at zero, track numbers start at 1*/
+							if (insertAt < 0) insertAt=0;
+							if (ev.cmd) chn[insertAt].push_back(ev); // in this code, most events are pushed to the output track of the same number as their midi channel, but markers are assigned to midi tracks, not channels. Marker needs to be pushed to the output track that corresponds to the current midi track. Midi creator needs to make sure that the channel numbers of their midi matches the track numbers TODO: change all other midichn->outtrack assignments to miditrack->outtrack
 						}
 						break;
 					}
@@ -343,6 +368,7 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 						ev.param1 = midiev.val;
 						chn[0].push_back(ev); // midi sysex events cannot be assigned to a specific channel. And it shouldn't matter which channel the CNV_MASTERVOL event is placed on.
 						chnusage[0] = 1;
+						printf("master vol: value: %u.\n", midiev.val);
 						break;
 					}
 				}
