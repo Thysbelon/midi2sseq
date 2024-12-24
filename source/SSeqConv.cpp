@@ -258,10 +258,8 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 							if (stringMarker.substr(0, 7) == "Random:"){
 								std::string valString=stringMarker.substr(7);
 								size_t commaPos;
-								//printf("valString: %s\n", valString.c_str());
 								
 								commaPos=valString.find(",");
-								//printf("valString.substr(0, commaPos): %s\n", valString.substr(0, commaPos).c_str());
 								const uint8_t commandByte=static_cast<uint8_t>(std::stoul(valString.substr(0, commaPos), nullptr, 16));
 								valString.erase(0,commaPos + 1);
 								commaPos=valString.find(",");
@@ -289,14 +287,14 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								ev.param1=(uchar)commandByte;
 								ev.param2=(uchar)varNum;
 								
-								printf("UseVar: commandByte: %X, varNum: %u. i: %d\n", commandByte, varNum, i);
+								printf("UseVar: commandByte: 0x%X, varNum: %u. i: %d\n", commandByte, varNum, i);
 							} else if (stringMarker.substr(0, 3) == "If:") {
 								std::string valString=stringMarker.substr(3);
 								uint8_t commandByte=std::stoul(valString, nullptr, 16);
 								ev.cmd=CNV_IF;
 								ev.param1=(uchar)commandByte;
 								
-								printf("If: commandByte: %X. i: %d\n", commandByte, i);
+								printf("If: commandByte: 0x%X. i: %d\n", commandByte, i);
 							} else if (stringMarker.substr(0, 4) == "Var:") { // both assignment and comparison fall under this umbrella
 								std::string valString=stringMarker.substr(4);
 								size_t commaPos;
