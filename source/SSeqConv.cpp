@@ -258,8 +258,10 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 							if (stringMarker.substr(0, 7) == "Random:"){
 								std::string valString=stringMarker.substr(7);
 								size_t commaPos;
+								//printf("valString: %s\n", valString.c_str());
 								
 								commaPos=valString.find(",");
+								//printf("valString.substr(0, commaPos): %s\n", valString.substr(0, commaPos).c_str());
 								const uint8_t commandByte=static_cast<uint8_t>(std::stoul(valString.substr(0, commaPos), nullptr, 16));
 								valString.erase(0,commaPos + 1);
 								commaPos=valString.find(",");
@@ -268,18 +270,12 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								int16_t randMax=std::stoi(valString);
 								
 								ev.cmd=CNV_RANDOM;
-								printf("commandByte: 0x%X\n", commandByte);
-								printf("\"commandByte == 0xC4\" bool: %d\n", commandByte == static_cast<uint8_t>(0xC4));
-								printf("\"commandByte == 0b11000100\" bool: %d\n", commandByte == static_cast<uint8_t>(0b11000100));
-								printf("ev.param1 (before assignment): 0x%X\n", ev.param1);
-								ev.param1 = static_cast<uint8_t>(commandByte); // BUG: why does the value change from C4 to 7F even though I'm not changing it?
+								ev.param1 = static_cast<uint8_t>(commandByte);
 								ev.paramwide=(ushort)randMin;
 								ev.paramwide2=(ushort)randMax;
-								//unsigned long testNum = 0xC4;
-								//ev.param1 = testNum;
 								
 								printf("random: commandByte: 0x%X, randMin: %d, randMax: %d. i: %d\n", commandByte, randMin, randMax, i);
-								printf("random: ev.param1: 0x%X, ev.paramwide: %d, ev.paramwide2: %d. i: %d\n", ev.param1, (int16_t)ev.paramwide, (int16_t)ev.paramwide2, i);
+								//printf("random: ev.param1: 0x%X, ev.paramwide: %d, ev.paramwide2: %d. i: %d\n", ev.param1, (int16_t)ev.paramwide, (int16_t)ev.paramwide2, i);
 							} else if (stringMarker.substr(0, 7) == "UseVar:") {
 								std::string valString=stringMarker.substr(7);
 								size_t commaPos;

@@ -60,12 +60,17 @@ typedef struct
 	uint time;
 	uint duration;
 	ushort cmd;
+	/*
 	union
 	{
 		struct { uchar param1, param2; };
 		ushort paramwide;
 		ushort paramwide2;
 	};
+	*/
+	struct { uchar param1, param2; }; // TODO?: remove this inner struct.
+	ushort paramwide;
+	ushort paramwide2;
 } CnvEvent;
 
 typedef struct
