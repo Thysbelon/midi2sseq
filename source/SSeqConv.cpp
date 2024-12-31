@@ -77,22 +77,28 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 						ev.cmd = CNV_NOTE;
 						ev.param1 = midiev.note;
 						ev.param2 = midiev.vel;
-						chn[midiev.chn].push_back(ev);
-						chnusage[midiev.chn] = 1;
-						relData[midiev.chn].insert(HeldNote(midiev.note, chn[midiev.chn].size() - 1));
+						//chn[midiev.chn].push_back(ev);
+						chn[i].push_back(ev);
+						//chnusage[midiev.chn] = 1;
+						chnusage[i] = 1;
+						//relData[midiev.chn].insert(HeldNote(midiev.note, chn[midiev.chn].size() - 1));
+						relData[i].insert(HeldNote(midiev.note, chn[i].size() - 1));
 						break;
 					}
 
 					case EV_NOTEOFF:
 					{
 						HeldNoteIter it;
-						pair<HeldNoteIter, HeldNoteIter> ret = relData[midiev.chn].equal_range(midiev.note);
+						//pair<HeldNoteIter, HeldNoteIter> ret = relData[midiev.chn].equal_range(midiev.note);
+						pair<HeldNoteIter, HeldNoteIter> ret = relData[i].equal_range(midiev.note);
 						for (it = ret.first; it != ret.second; it ++)
 						{
-							CnvEvent& oldev = chn[midiev.chn][(*it).second];
+							//CnvEvent& oldev = chn[midiev.chn][(*it).second];
+							CnvEvent& oldev = chn[i][(*it).second];
 							oldev.duration = ev.time - oldev.time;
 						}
-						relData[midiev.chn].erase(midiev.note);
+						//relData[midiev.chn].erase(midiev.note);
+						relData[i].erase(midiev.note);
 						break;
 					}
 
@@ -171,6 +177,7 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								ev.cmd = CNV_MODDELAY;
 								ev.param1 = midiev.val;
 								break;
+							/*
 							case 126: // mono // TODO: study how DS games use mono; improve this code
 								if (trackst->notewait == false) {
 									printf("inserted notewait (true).\n");
@@ -187,6 +194,7 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 									trackst->notewait = false;
 								}
 								break;
+							*/
 							case 84: // portamento control
 								ev.cmd = CNV_PORTAMENTOCTRL;
 								ev.param1 = midiev.val;
@@ -219,7 +227,8 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 							*/
 							
 						}
-						if (ev.cmd) chn[midiev.chn].push_back(ev); //, chnusage[midiev.chn] = 1;
+						//if (ev.cmd) chn[midiev.chn].push_back(ev); //, chnusage[midiev.chn] = 1;
+						if (ev.cmd) chn[i].push_back(ev);
 						break;
 					}
 
@@ -229,7 +238,8 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 						ev.cmd = CNV_PITCHBEND;
 						int pb = ((int)midiev.valwide - 0x2000) / 64;
 						ev.param1 = ((uint)pb) & 0xFF;
-						chn[midiev.chn].push_back(ev);
+						//chn[midiev.chn].push_back(ev);
+						chn[i].push_back(ev);
 						//chnusage[midiev.chn] = 1;
 						break;
 					}
@@ -238,13 +248,15 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 					{
 						ev.cmd = CNV_PATCH;
 						ev.param1 = midiev.patch;
-						chn[midiev.chn].push_back(ev);
+						//chn[midiev.chn].push_back(ev);
+						chn[i].push_back(ev);
 						//chnusage[midiev.chn] = 1;
 						break;
 					}
 
 					case EV_MARKER:
 					{
+						
 						if (strcasecmp(midiev.text, "loopStart") == 0)
 						{
 							ev.cmd = CNV_LOOPSTART;
@@ -253,7 +265,8 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 						{
 							ev.cmd = CNV_LOOPEND;
 							for (int j = 0; j < 16; j ++) chn[j].push_back(ev);
-						} else { // TEST
+						} else { // TEST 
+						
 							std::string stringMarker(midiev.text);
 							if (stringMarker.substr(0, 7) == "Random:"){
 								std::string valString=stringMarker.substr(7);
@@ -288,13 +301,14 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								ev.param2=(uchar)varNum;
 								
 								printf("UseVar: commandByte: 0x%X, varNum: %u. i: %d\n", commandByte, varNum, i);
-							} else if (stringMarker.substr(0, 3) == "If:") {
+							/* }  else if (stringMarker.substr(0, 3) == "If:") {
 								std::string valString=stringMarker.substr(3);
 								uint8_t commandByte=std::stoul(valString, nullptr, 16);
 								ev.cmd=CNV_IF;
 								ev.param1=(uchar)commandByte;
 								
-								printf("If: commandByte: 0x%X. i: %d\n", commandByte, i);
+								printf("If: commandByte: 0x%X. i: %d\n", commandByte, i); */
+								// Looking at Tottoko Hamutaro - Nazo Nazo Q MUS_ENDROOL, It seems that the command argument of 0xA2 also includes the parameter of that command. Because different commands have different length parameters, the command argument of 0xA2 has a variable length. 
 							} else if (stringMarker.substr(0, 4) == "Var:") { // both assignment and comparison fall under this umbrella
 								std::string valString=stringMarker.substr(4);
 								size_t commaPos;
@@ -345,10 +359,26 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								
 								ev.cmd = CNV_SWEEPPITCH;
 								ev.paramwide = (ushort)value;
-							}
-							int insertAt = i - 1;/*midi channels start at zero, track numbers start at 1*/
-							if (insertAt < 0) insertAt=0;
-							if (ev.cmd) chn[insertAt].push_back(ev); // in this code, most events are pushed to the output track of the same number as their midi channel, but markers are assigned to midi tracks, not channels. Marker needs to be pushed to the output track that corresponds to the current midi track. Midi creator needs to make sure that the channel numbers of their midi matches the track numbers TODO: change all other midichn->outtrack assignments to miditrack->outtrack
+							} /* else if (stringMarker.substr(0, 10) == "loopStart:") {
+								std::string valString=stringMarker.substr(10);
+								uint8_t loopCount=std::stoi(valString);
+								printf("loopStart: loopCount: %d (0 is infinite). i: %d\n", loopCount, i);
+								
+								ev.cmd = CNV_LOOPSTART;
+								ev.param1 = loopCount;
+							} else if (stringMarker == "loopEnd") {
+								printf("loopEnd. i: %d\n", i);
+								
+								ev.cmd = CNV_LOOPEND;
+							} else if (stringMarker.substr(0, 5) == "Jump:") {
+								std::string valString=stringMarker.substr(5);
+								uint8_t jumpOffset=std::stoi(valString);
+								printf("Jump: jumpOffset: %u. i: %d\n", jumpOffset, i);
+								
+								ev.cmd = CNV_JUMP;
+								ev.param1 = loopCount;
+							} */
+							if (ev.cmd) chn[i].push_back(ev); // empty tracks in Reaper should be deleted before exporting the midi. If your midi avoids channel 10, shift every channel from 11 onwards back by one before exporting, or else there may be an empty track. Even after taking these precautions, it seems that there is always at least one empty track after exporting a midi from Reaper.
 						}
 						break;
 					}
