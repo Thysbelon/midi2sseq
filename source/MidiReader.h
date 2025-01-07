@@ -10,7 +10,7 @@ enum
 
 	EV_NOTEON, EV_NOTEOFF, EV_AFTERTOUCH, EV_CONTROLLER, EV_PATCH, EV_AFTERTOUCH2, EV_PITCHBEND,
 	EV_TEXT, EV_MARKER, EV_TEMPO,
-	EV_SYSEX
+	EV_SYSEX // TODO: change name to EV_MASTERVOLSYSEX because the universal master volume sysex is the only sysex that this program supports.
 };
 
 typedef struct

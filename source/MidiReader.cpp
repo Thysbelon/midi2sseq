@@ -150,18 +150,28 @@ bool MidiReader::LoadTrack(FileClass& f, vector<MidiEvent>& track)
 			}
 
 			if (buf) free(buf);
-		} else if (cmd == 0xF0 || cmd == 0xF7) {
-			ev.cmd = EV_SYSEX;
-			// byte sysexMasterVolume[] = { 0xF0, 0x7F, 0x7F, 0x04, 0x01, 0x00, (byte) volume, 0xF7 }
-			// volume is in the range 0-127
-			// a length byte is inserted in between the first and second byte of sysexMasterVolume.
-			// this sysex implementation only supports one sysex command: master volume.
-			// TODO: limit to F0 <length byte> 7F 7F 04 01 00 volume F7
-			for (int i=0; i<6; i++){
-				f.ReadUChar(); // discard 6 bytes.
+		} else if (cmd == 0xF0 /* || cmd == 0xF7 */) {
+			// an EV_SYSEX event will only be saved if the bytes match this pattern (the universal master volume sysex): F0 07 7F 7F 04 01 00 volume_byte F7
+			// The starting F0 byte has already been read for the cmd variable.
+			uint8_t sysexLength = f.ReadUChar();
+			if (sysexLength == 7) {
+				uint8_t tempVolume=0;
+				bool isMasterVolSysex=true;
+				uint8_t sysexMasterVolume5Bytes[] = { 0x7F, 0x7F, 0x04, 0x01, 0x00 };
+				for (int i=0; i<5; i++){
+					uint8_t curSysexByte = f.ReadUChar();
+					if (curSysexByte != sysexMasterVolume5Bytes[i]) {isMasterVolSysex=false; break;}
+				}
+				if (isMasterVolSysex==true) {
+					tempVolume = f.ReadUChar();
+					if (f.ReadUChar() == 0xF7) {ev.cmd = EV_SYSEX; ev.val = tempVolume;} // only save the volume if the final byte is also the value we expect for master vol sysex.
+				}
+			} else {
+				// discard all bytes of unknown sysex.
+				for (uint8_t curSysexOffset=0; curSysexOffset<sysexLength; curSysexOffset++){
+					f.ReadUChar();
+				}
 			}
-			ev.val = f.ReadUChar();
-			f.ReadUChar(); // discard final f7 byte.
 		}
 
 		track.push_back(ev);

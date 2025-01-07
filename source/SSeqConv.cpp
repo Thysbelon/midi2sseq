@@ -175,7 +175,8 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								break;
 							case 26: // undefined midi cc corresponding to sseq mod delay
 								ev.cmd = CNV_MODDELAY;
-								ev.param1 = midiev.val;
+								//ev.param1 = midiev.val;
+								ev.paramwide = midiev.val;
 								break;
 							/*
 							case 126: // mono // TODO: study how DS games use mono; improve this code
@@ -358,6 +359,13 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								printf("sweep pitch: value: %d. i: %d\n", value, i);
 								
 								ev.cmd = CNV_SWEEPPITCH;
+								ev.paramwide = (ushort)value;
+							} else if (stringMarker.substr(0, 9) == "ModDelay:") {
+								std::string valString=stringMarker.substr(9);
+								int16_t value=std::stoi(valString);
+								printf("mod delay: value: %d. i: %d\n", value, i);
+								
+								ev.cmd = CNV_MODDELAY;
 								ev.paramwide = (ushort)value;
 							} /* else if (stringMarker.substr(0, 10) == "loopStart:") {
 								std::string valString=stringMarker.substr(10);
@@ -603,7 +611,8 @@ bool SSeqConv::SaveTrack(FileClass& f, CnvTrack& trinfo)
 			case CNV_MODDELAY: // s16
 				f.WriteUChar(0xE0);
 				//f.WriteUChar(ev.param1);
-				f.WriteUShort((ushort)ev.param1);
+				//f.WriteUShort((ushort)ev.param1);
+				f.WriteUShort(ev.paramwide);
 				break;
 			case CNV_NOTEWAIT:
 				f.WriteUChar(0xC7);
