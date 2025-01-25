@@ -52,7 +52,10 @@ enum
 	CNV_NOTVAR,
 	CNV_TIE,
 	CNV_PRINTVAR,
-	CNV_MASTERVOL
+	CNV_MASTERVOL,
+	CNV_SIMPLELOOPSTART,
+	CNV_SIMPLELOOPEND,
+	CNV_JUMP
 };
 
 typedef struct
@@ -71,6 +74,8 @@ typedef struct
 	struct { uchar param1, param2; }; // TODO?: remove this inner struct.
 	ushort paramwide;
 	ushort paramwide2;
+	uint32_t paramOffset;
+	vector<uint8_t> byteList;
 } CnvEvent;
 
 typedef struct

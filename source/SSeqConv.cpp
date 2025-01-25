@@ -16,9 +16,168 @@ typedef struct
 	//uint dataentry;
 	int8_t RPNtype[2]={NOT_SET, NOT_SET};
 	bool notewait=false;
+	bool isSimpleLoop = true;
 } TrackStat;
 
 uint64_t whileCheck = 0;
+
+// 0xA2 variables start
+enum sseqParameterType {
+	NOPARAM,
+	BOOLPARAM,
+	S8PARAM,
+	U8PARAM,
+	HEXU8PARAM, // used to display commandByte parameters as hexadecimal.
+	S16PARAM,
+	U16PARAM,
+	HEXU24PARAM, // used for offset parameters for the commands Jump and Call
+	VARLENPARAM
+};
+enum midiEventType {
+	CC = 1,
+	TEXTMARKER,
+	NOTE,
+	PROGRAMCHANGE,
+	MASTERVOLSYSEX,
+	PITCHBEND,
+	TEMPOSET,
+	REST,
+	NEWTRACK,
+	JUMP,
+	CALL,
+	RPNTRANSPOSE,
+	RPNPITCHBENDRANGE,
+	MONOPOLY,
+	LOOPSTART,
+	LOOPEND,
+	RETURN
+};
+
+typedef struct sseqComStruct {
+	char commandName[50];
+	uint8_t commandByte, param1, param2, param3;
+	uint8_t convToMidiEvType;
+	uint8_t CCnum; // Decides what midi CC number the sseq event will be converted to. Only read if convToMidiEvType == CC.
+} sseqCom;
+
+// CCs have been zeroed out.
+sseqCom sseqComList[] = {
+	{"Rest", 0x80, VARLENPARAM, NOPARAM, NOPARAM, REST, 0},
+	{"ProgramChange", 0x81, VARLENPARAM, NOPARAM, NOPARAM, PROGRAMCHANGE, 0},
+	{"OpenTrack", 0x93, U8PARAM, HEXU24PARAM, NOPARAM, NEWTRACK, 0},
+	{"Jump", 0x94, HEXU24PARAM, NOPARAM, NOPARAM, JUMP, 0},
+	{"Call", 0x95, HEXU24PARAM, NOPARAM, NOPARAM, CALL, 0},
+	{"Random", 0xA0, HEXU8PARAM, S16PARAM, S16PARAM, TEXTMARKER, 0},
+	{"UseVar", 0xA1, HEXU8PARAM, U8PARAM, NOPARAM, TEXTMARKER, 0},
+	{"If", 0xA2, HEXU8PARAM, NOPARAM, NOPARAM, TEXTMARKER, 0},
+	{"Pan", 0xC0, U8PARAM, NOPARAM, NOPARAM, CC, 0},
+	{"TrackVolume", 0xC1, U8PARAM, NOPARAM, NOPARAM, CC, 0},
+	{"MasterVolume", 0xC2, U8PARAM, NOPARAM, NOPARAM, MASTERVOLSYSEX, 0},
+	{"Transpose", 0xC3, S8PARAM, NOPARAM, NOPARAM, RPNTRANSPOSE, 0},
+	{"PitchBend", 0xC4, S8PARAM, NOPARAM, NOPARAM, PITCHBEND, 0},
+	{"PitchBendRange", 0xC5, U8PARAM, NOPARAM, NOPARAM, RPNPITCHBENDRANGE, 0},
+	{"Priority", 0xC6, U8PARAM, NOPARAM, NOPARAM, CC, 14},
+	{"NoteWait", 0xC7, BOOLPARAM, NOPARAM, NOPARAM, MONOPOLY, 0},
+	{"Tie", 0xC8, BOOLPARAM, NOPARAM, NOPARAM, TEXTMARKER, 0},
+	{"PortamentoControl", 0xC9, U8PARAM, NOPARAM, NOPARAM, CC, 0},
+	{"ModDepth", 0xCA, U8PARAM, NOPARAM, NOPARAM, CC, 0},
+	{"ModSpeed", 0xCB, U8PARAM, NOPARAM, NOPARAM, CC, 21},
+	{"ModType", 0xCC, U8PARAM, NOPARAM, NOPARAM, CC, 22},
+	{"ModRange", 0xCD, U8PARAM, NOPARAM, NOPARAM, CC, 3},
+	{"Portamento", 0xCE, BOOLPARAM, NOPARAM, NOPARAM, CC, 0},
+	{"PortamentoTime", 0xCF, U8PARAM, NOPARAM, NOPARAM, CC, 0},
+	{"AttackRate", 0xD0, U8PARAM, NOPARAM, NOPARAM, CC, 0},
+	{"DecayRate", 0xD1, U8PARAM, NOPARAM, NOPARAM, CC, 0},
+	{"SustainRate", 0xD2, U8PARAM, NOPARAM, NOPARAM, CC, 76},
+	{"ReleaseRate", 0xD3, U8PARAM, NOPARAM, NOPARAM, CC, 0},
+	{"LoopStart", 0xD4, U8PARAM, NOPARAM, NOPARAM, LOOPSTART, 0},
+	{"Expression", 0xD5, U8PARAM, NOPARAM, NOPARAM, CC, 0},
+	{"PrintVar", 0xD6, U8PARAM, NOPARAM, NOPARAM, TEXTMARKER, 0},
+	{"ModDelay", 0xE0, S16PARAM, NOPARAM, NOPARAM, TEXTMARKER, 0},
+	{"Tempo", 0xE1, U16PARAM, NOPARAM, NOPARAM, TEMPOSET, 0},
+	{"SweepPitch", 0xE3, S16PARAM, NOPARAM, NOPARAM, TEXTMARKER, 0},
+	{"LoopEnd", 0xFC, NOPARAM, NOPARAM, NOPARAM, LOOPEND, 0},
+	{"Return", 0xFD, NOPARAM, NOPARAM, NOPARAM, RETURN, 0},
+	{"SignifyMultiTrack", 0xFE, U16PARAM, NOPARAM, NOPARAM, 0, 0},
+	{"EndOfTrack", 0xFF, NOPARAM, NOPARAM, NOPARAM, 0, 0},
+};
+
+const size_t sseqComListLen=38;
+
+// 0xA2 variables end
+
+void readVarComMarker(std::string valString, ushort* outcmd, uint8_t* outVarNum, int16_t* outValue){
+	size_t commaPos;
+								
+	commaPos=valString.find(",");
+	uint8_t varNum=std::stoi(valString.substr(0, commaPos));
+	valString.erase(0,commaPos + 1);
+	commaPos=valString.find(",");
+	std::string operation=valString.substr(0, commaPos);
+	valString.erase(0,commaPos + 1);
+	int16_t value=std::stoi(valString);
+	
+	const char* varMethodName[] = {
+		"=", "+=", "-=", "*=", "/=", "[Shift]", "[Rand]", "", 
+		"==", ">=", ">", "<=", "<", "!="
+	};
+	int operIndex=0;
+	for (operIndex=0; operIndex<14; operIndex++){
+		if (operation == (std::string)varMethodName[operIndex]) {
+			break;
+		}
+	}
+	*outcmd = CNV_SETVAR + operIndex; // CNV vars must be in the correct order in SSeqConv.h
+	*outVarNum=(uchar)varNum;
+	*outValue = (ushort)value;
+	
+	//printf("var com %d: varNum: %u, value: %d. i: %d\n", CNV_SETVAR + operIndex, varNum, value, i);
+	printf("var com %d: varNum: %u, value: %d.\n", CNV_SETVAR + operIndex, varNum, value);
+}
+
+void readParamStringOfType(std::string paramString, uint8_t sseqParamType, vector<uint8_t>* evByteListPointer){
+	char tempBytesString[16];
+	std::string tempBytesString2;
+	switch (sseqParamType) {
+		case BOOLPARAM:
+			evByteListPointer->push_back(paramString == "On" ? 1 : 0);
+			break;
+		case S8PARAM:
+		case U8PARAM:
+			evByteListPointer->push_back((uint8_t)std::stoi(paramString));
+			break;
+		case HEXU8PARAM: 
+			evByteListPointer->push_back((uint8_t)std::stoul(paramString, nullptr, 16));
+			break;
+		case S16PARAM:
+		case U16PARAM:
+			snprintf(tempBytesString, 16, "%04X", (uint16_t)std::stoi(paramString));
+			tempBytesString2 = (std::string)tempBytesString;
+			// write bytes in reverse. for little endian.
+			evByteListPointer->push_back((uint8_t)std::stoul(tempBytesString2.substr(2), nullptr, 16));
+			evByteListPointer->push_back((uint8_t)std::stoul(tempBytesString2.substr(0,2), nullptr, 16));
+			break;
+		case HEXU24PARAM: 
+			snprintf(tempBytesString, 16, "%06X", std::stoul(paramString, nullptr, 16)); // remove "0x"
+			tempBytesString2 = (std::string)tempBytesString;
+			// write bytes in reverse. for little endian.
+			evByteListPointer->push_back((uint8_t)std::stoul(tempBytesString2.substr(4), nullptr, 16));
+			evByteListPointer->push_back((uint8_t)std::stoul(tempBytesString2.substr(2,2), nullptr, 16));
+			evByteListPointer->push_back((uint8_t)std::stoul(tempBytesString2.substr(0,2), nullptr, 16));
+			break;
+		case VARLENPARAM:
+			// TEST
+			snprintf(tempBytesString, 16, "%X", std::stoi(paramString));
+			if (strlen(tempBytesString) % 2 != 0) {
+				snprintf(tempBytesString, 16, "0%s", tempBytesString); // TEST
+			}
+			tempBytesString2 = (std::string)tempBytesString;
+			for (int charIndex=tempBytesString2.length() - 2; charIndex>=0; charIndex-=2) {
+				evByteListPointer->push_back((uint8_t)std::stoul(tempBytesString2.substr(charIndex,2), nullptr, 16));
+			}
+			break;
+	}
+}
 
 static inline uint CnvTime(uint time, uint tpb)
 {
@@ -260,12 +419,21 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 						
 						if (strcasecmp(midiev.text, "loopStart") == 0)
 						{
-							ev.cmd = CNV_LOOPSTART;
+							trackst->isSimpleLoop=true;
+							ev.cmd = CNV_SIMPLELOOPSTART;
 							for (int j = 0; j < 16; j ++) chn[j].push_back(ev); // push the loopStart event to every sseq channel.
-						}else if (strcasecmp(midiev.text, "loopEnd") == 0)
+						} else if (strcasecmp(midiev.text, "loopEnd") == 0)
 						{
-							ev.cmd = CNV_LOOPEND;
-							for (int j = 0; j < 16; j ++) chn[j].push_back(ev);
+							//printf("loopEnd marker detected.\n");
+							if (trackst->isSimpleLoop == true) {
+								//printf("isSimpleLoop is true.\n");
+								ev.cmd = CNV_SIMPLELOOPEND;
+								for (int j = 0; j < 16; j ++) chn[j].push_back(ev);
+							} else {
+								//printf("isSimpleLoop is false.\n");
+								ev.cmd = CNV_LOOPEND;
+								chn[i].push_back(ev);
+							}
 						} else { // TEST 
 						
 							std::string stringMarker(midiev.text);
@@ -302,15 +470,76 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								ev.param2=(uchar)varNum;
 								
 								printf("UseVar: commandByte: 0x%X, varNum: %u. i: %d\n", commandByte, varNum, i);
-							/* }  else if (stringMarker.substr(0, 3) == "If:") {
-								std::string valString=stringMarker.substr(3);
-								uint8_t commandByte=std::stoul(valString, nullptr, 16);
+							} else if (stringMarker.substr(0, 3) == "If:") {
+								//printf("If\n");
 								ev.cmd=CNV_IF;
-								ev.param1=(uchar)commandByte;
 								
-								printf("If: commandByte: 0x%X. i: %d\n", commandByte, i); */
-								// Looking at Tottoko Hamutaro - Nazo Nazo Q MUS_ENDROOL, It seems that the command argument of 0xA2 also includes the parameter of that command. Because different commands have different length parameters, the command argument of 0xA2 has a variable length. 
+								std::string valString=stringMarker.substr(3);
+								size_t colonPos=valString.find(":");
+								std::string subComName = valString.substr(0, colonPos);
+								
+								if (subComName == "Var") { // TEST
+									std::string valString=stringMarker.substr(colonPos+1);
+									uint8_t varNum;
+									int16_t value;
+									ushort varcmdnum;
+									readVarComMarker(valString, &varcmdnum, &varNum, &value);
+									
+									ev.byteList.push_back((uint8_t)(varcmdnum - CNV_SETVAR) + 0xB0);
+									ev.byteList.push_back(varNum);
+									
+									char tempBytesString[16];
+									snprintf(tempBytesString, 16, "%04X", (uint16_t)value);
+									std::string tempBytesString2(tempBytesString);
+									// write bytes in reverse. for little endian.
+									ev.byteList.push_back((uint8_t)std::stoul(tempBytesString2.substr(2), nullptr, 16));
+									ev.byteList.push_back((uint8_t)std::stoul(tempBytesString2.substr(0,2), nullptr, 16));
+								} else if (subComName.substr(0,6) == "Note0x") { // TEST
+									uint8_t noteByte=std::stoul(subComName.substr(6), nullptr, 16);
+									ev.byteList.push_back(noteByte);
+									valString.erase(0, colonPos+1);
+									size_t commaPos;
+									std::string paramString="";
+									commaPos=valString.find(",");
+									paramString=valString.substr(0, commaPos);
+									readParamStringOfType(paramString, U8PARAM, &ev.byteList); // velocity
+									
+									valString.erase(0, commaPos+1);
+									paramString=valString;
+									readParamStringOfType(paramString, VARLENPARAM, &ev.byteList); // duration
+								} else { // TEST this with every if event other than jump
+									int comIndex=0;
+									for (comIndex=0; comIndex<sseqComListLen; comIndex++){
+										if (subComName == (std::string)sseqComList[comIndex].commandName){
+											break;
+										}
+									}
+									ev.byteList.push_back(sseqComList[comIndex].commandByte);
+									valString.erase(0, colonPos+1);
+									size_t commaPos;
+									std::string paramString="";
+									if (sseqComList[comIndex].param1 != NOPARAM){
+										commaPos=valString.find(",");
+										paramString=valString.substr(0, commaPos);
+										readParamStringOfType(paramString, sseqComList[comIndex].param1, &ev.byteList);
+										
+										if (sseqComList[comIndex].param2 != NOPARAM){
+											valString.erase(0, commaPos+1);
+											commaPos=valString.find(",");
+											paramString=valString.substr(0, commaPos);
+											readParamStringOfType(paramString, sseqComList[comIndex].param2, &ev.byteList);
+											
+											if (sseqComList[comIndex].param3 != NOPARAM){
+												valString.erase(0, commaPos+1);
+												//commaPos=valString.find(",");
+												paramString=valString;
+												readParamStringOfType(paramString, sseqComList[comIndex].param3, &ev.byteList);
+											}
+										}
+									}
+								}
 							} else if (stringMarker.substr(0, 4) == "Var:") { // both assignment and comparison fall under this umbrella
+								/*
 								std::string valString=stringMarker.substr(4);
 								size_t commaPos;
 								
@@ -337,6 +566,17 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								ev.paramwide = (ushort)value;
 								
 								printf("var com %d: varNum: %u, value: %d. i: %d\n", CNV_SETVAR + operIndex, varNum, value, i);
+								*/
+								
+								std::string valString=stringMarker.substr(4);
+								//readVarComMarker(&ev);
+								uint8_t varNum;
+								int16_t value;
+								ushort varcmdnum;
+								readVarComMarker(valString, &varcmdnum, &varNum, &value);
+								ev.cmd = varcmdnum;
+								ev.param1 = varNum;
+								ev.paramwide = value;
 							} else if (stringMarker.substr(0, 4) == "Tie:") {
 								std::string valString=stringMarker.substr(4);
 								bool value = (valString == "On" || valString == "on") ? true : false;
@@ -367,25 +607,28 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								
 								ev.cmd = CNV_MODDELAY;
 								ev.paramwide = (ushort)value;
-							} /* else if (stringMarker.substr(0, 10) == "loopStart:") {
+							} else if (stringMarker.substr(0, 10) == "loopStart:") {
+								trackst->isSimpleLoop=false;
+								
 								std::string valString=stringMarker.substr(10);
 								uint8_t loopCount=std::stoi(valString);
 								printf("loopStart: loopCount: %d (0 is infinite). i: %d\n", loopCount, i);
 								
 								ev.cmd = CNV_LOOPSTART;
 								ev.param1 = loopCount;
-							} else if (stringMarker == "loopEnd") {
+							} /* else if (stringMarker == "loopEnd") {
 								printf("loopEnd. i: %d\n", i);
 								
 								ev.cmd = CNV_LOOPEND;
-							} else if (stringMarker.substr(0, 5) == "Jump:") {
+							} */ else if (stringMarker.substr(0, 5) == "Jump:") {
 								std::string valString=stringMarker.substr(5);
-								uint8_t jumpOffset=std::stoi(valString);
-								printf("Jump: jumpOffset: %u. i: %d\n", jumpOffset, i);
+								//uint32_t jumpOffset=std::stoi(valString);
+								uint32_t jumpOffset = std::stoul(valString, nullptr, 16);
+								printf("Jump: jumpOffset: 0x%06X. i: %d\n", jumpOffset, i);
 								
 								ev.cmd = CNV_JUMP;
-								ev.param1 = loopCount;
-							} */
+								ev.paramOffset = jumpOffset;
+							}
 							if (ev.cmd) chn[i].push_back(ev); // empty tracks in Reaper should be deleted before exporting the midi. If your midi avoids channel 10, shift every channel from 11 onwards back by one before exporting, or else there may be an empty track. Even after taking these precautions, it seems that there is always at least one empty track after exporting a midi from Reaper.
 						}
 						break;
@@ -507,7 +750,7 @@ bool SSeqConv::SaveTrack(FileClass& f, CnvTrack& trinfo)
 	// having midi2sseq write notewait off at the start of every song instead of leaving it to the midi *could* have negative consequences if a song is meant to play in notewait on mode, but this scenario seems unlikely. I think most DS composers used notewait off.
 	vector<CnvEvent>& data = *trinfo.trackdata;
 	uint lasttime = 0;
-	int loopOff = f.Tell() - 0x1C; // just in case
+	int simpleLoopOff = f.Tell() - 0x1C; // just in case
 
 	for(uint i = 0; i < data.size(); i ++)
 	{
@@ -562,13 +805,12 @@ bool SSeqConv::SaveTrack(FileClass& f, CnvTrack& trinfo)
 				f.WriteUChar(0x81); // PATCH
 				f.WriteUChar(ev.param1 & 0x7F);
 				break;
-			case CNV_LOOPSTART:
-				loopOff = f.Tell() - 0x1C;
+			case CNV_SIMPLELOOPSTART:
+				simpleLoopOff = f.Tell() - 0x1C;
 				break;
-			case CNV_LOOPEND:
+			case CNV_SIMPLELOOPEND:
 				f.WriteUChar(0x94); // JUMP
-				// TODO: add option in mid2sseq to specify whether it should do loops as a 0x94 jump, or as 0xD4 loop start and 0xFC loop end; and/or have sseq2mid specify what type the original sseq used.
-				f.WriteUInt(loopOff);
+				f.WriteUInt(simpleLoopOff);
 				break;
 			case CNV_TEMPO:
 				if (ev.paramwide > 240)
@@ -610,8 +852,6 @@ bool SSeqConv::SaveTrack(FileClass& f, CnvTrack& trinfo)
 				break;
 			case CNV_MODDELAY: // s16
 				f.WriteUChar(0xE0);
-				//f.WriteUChar(ev.param1);
-				//f.WriteUShort((ushort)ev.param1);
 				f.WriteUShort(ev.paramwide);
 				break;
 			case CNV_NOTEWAIT:
@@ -644,8 +884,6 @@ bool SSeqConv::SaveTrack(FileClass& f, CnvTrack& trinfo)
 				break;
 			case CNV_SWEEPPITCH:
 				f.WriteUChar(0xE3);
-				//f.WriteUChar(ev.param1);
-				//f.WriteUShort((ushort)ev.param1);
 				f.WriteUShort(ev.paramwide);
 				break;
 			case CNV_RANDOM:
@@ -661,75 +899,12 @@ bool SSeqConv::SaveTrack(FileClass& f, CnvTrack& trinfo)
 				break;
 			case CNV_IF:
 				f.WriteUChar(0xA2);
-				f.WriteUChar(ev.param1);
+				//printf("If event bytes:\n");
+				for (uint8_t singleByte : ev.byteList) {
+					//printf("%02X\n", singleByte);
+					f.WriteUChar(singleByte);
+				}
 				break;
-			/*
-			case CNV_SETVAR:
-				f.WriteUChar(0xB0);
-				f.WriteUChar(ev.param1);
-				f.WriteUShort(ev.paramwide);
-				break;
-			case CNV_ADDVAR:
-				f.WriteUChar(0xB1);
-				f.WriteUChar(ev.param1);
-				f.WriteUShort(ev.paramwide);
-				break;
-			case CNV_SUBVAR:
-				f.WriteUChar(0xB2);
-				f.WriteUChar(ev.param1);
-				f.WriteUShort(ev.paramwide);
-				break;
-			case CNV_MULTVAR:
-				f.WriteUChar(0xB3);
-				f.WriteUChar(ev.param1);
-				f.WriteUShort(ev.paramwide);
-				break;
-			case CNV_DIVVAR:
-				f.WriteUChar(0xB4);
-				f.WriteUChar(ev.param1);
-				f.WriteUShort(ev.paramwide);
-				break;
-			case CNV_SHIFTVAR:
-				f.WriteUChar(0xB5);
-				f.WriteUChar(ev.param1);
-				f.WriteUShort(ev.paramwide);
-				break;
-			case CNV_RANDVAR:
-				f.WriteUChar(0xB6);
-				f.WriteUChar(ev.param1);
-				f.WriteUShort(ev.paramwide);
-				break;
-			case CNV_EQVAR:
-				f.WriteUChar(0xB8);
-				f.WriteUChar(ev.param1);
-				f.WriteUShort(ev.paramwide);
-				break;
-			case CNV_GRTEQVAR:
-				f.WriteUChar(0xB9);
-				f.WriteUChar(ev.param1);
-				f.WriteUShort(ev.paramwide);
-				break;
-			case CNV_GRTVAR:
-				f.WriteUChar(0xBA);
-				f.WriteUChar(ev.param1);
-				f.WriteUShort(ev.paramwide);
-				break;
-			case CNV_LESSEQVAR:
-				f.WriteUChar(0xBB);
-				f.WriteUChar(ev.param1);
-				f.WriteUShort(ev.paramwide);
-				break;
-			case CNV_LESSVAR:
-				f.WriteUChar(0xBC);
-				f.WriteUChar(ev.param1);
-				f.WriteUShort(ev.paramwide);
-				break;
-			case CNV_NOTVAR:
-				f.WriteUChar(0xBD);
-				f.WriteUChar(ev.param1);
-				f.WriteUShort(ev.paramwide);
-				break;
-			*/
 			case CNV_SETVAR:
 			case CNV_ADDVAR:
 			case CNV_SUBVAR:
@@ -758,6 +933,17 @@ bool SSeqConv::SaveTrack(FileClass& f, CnvTrack& trinfo)
 			case CNV_MASTERVOL:
 				f.WriteUChar(0xC2);
 				f.WriteUChar(ev.param1);
+				break;
+			case CNV_LOOPSTART:
+				f.WriteUChar(0xD4);
+				f.WriteUChar(ev.param1);
+				break;
+			case CNV_LOOPEND:
+				f.WriteUChar(0xFC);
+				break;
+			case CNV_JUMP:
+				f.WriteUChar(0x94);
+				f.WriteU24Bit(ev.paramOffset);
 				break;
 		}
 	}
