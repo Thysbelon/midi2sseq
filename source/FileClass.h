@@ -61,10 +61,10 @@ public:
 		fwrite(&value, sizeof(uchar), 1, f);
 	}
 	
-	void WriteU24Bit(uint32_t value)
+	size_t WriteU24Bit(uint32_t value)
 	{
 		value = LittleEndian ? le_eswap_u24(value) : be_eswap_u24(value);
-		fwrite(&value, 3, 1, f);
+		return fwrite(&value, 3, 1, f);
 	}
 
 	uint ReadVL()

@@ -135,6 +135,18 @@ void readVarComMarker(std::string valString, ushort* outcmd, uint8_t* outVarNum,
 	printf("var com %d: varNum: %u, value: %d.\n", CNV_SETVAR + operIndex, varNum, value);
 }
 
+void readJumpComMarker(std::string valString, uint8_t* outJumpIndex){
+	//printf("readJumpComMarker: valString: %s\n", valString.c_str());
+	uint8_t jumpIndex=std::stoi(valString);
+	*outJumpIndex=(uchar)jumpIndex;
+}
+void readJumpPointMarker(std::string markerString, uint8_t* outJumpIndex){
+	//printf("readJumpPointMarker: markerString: %s\n", markerString.c_str());
+	//printf("readJumpPointMarker: markerString.substr(9): %s\n", markerString.substr(9).c_str());
+	uint8_t jumpIndex=std::stoi(markerString.substr(9));
+	*outJumpIndex=(uchar)jumpIndex;
+}
+
 void readParamStringOfType(std::string paramString, uint8_t sseqParamType, vector<uint8_t>* evByteListPointer){
 	char tempBytesString[16];
 	std::string tempBytesString2;
@@ -479,7 +491,8 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								std::string subComName = valString.substr(0, colonPos);
 								
 								if (subComName == "Var") { // TEST
-									std::string valString=stringMarker.substr(colonPos+1);
+									//std::string valString=stringMarker.substr(colonPos+1);
+									valString=valString.substr(colonPos+1);
 									uint8_t varNum;
 									int16_t value;
 									ushort varcmdnum;
@@ -507,7 +520,15 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 									valString.erase(0, commaPos+1);
 									paramString=valString;
 									readParamStringOfType(paramString, VARLENPARAM, &ev.byteList); // duration
-								} else { // TEST this with every if event other than jump
+								} else if (subComName == "Jump") { // !
+									//printf("If subComName Jump: stringMarker:%s\n", stringMarker.c_str());
+									//std::string valString=stringMarker.substr(colonPos+1);
+									valString=valString.substr(colonPos+1);
+									uint8_t jumpIndex;
+									readJumpComMarker(valString, &jumpIndex);
+									ev.byteList.push_back((uint8_t)0x94);
+									ev.byteList.push_back(jumpIndex);
+								} else { // TEST this with every if event
 									int comIndex=0;
 									for (comIndex=0; comIndex<sseqComListLen; comIndex++){
 										if (subComName == (std::string)sseqComList[comIndex].commandName){
@@ -621,13 +642,25 @@ bool SSeqConv::ConvertMidi(MidiReader& midi)
 								
 								ev.cmd = CNV_LOOPEND;
 							} */ else if (stringMarker.substr(0, 5) == "Jump:") {
+								/*
 								std::string valString=stringMarker.substr(5);
-								//uint32_t jumpOffset=std::stoi(valString);
 								uint32_t jumpOffset = std::stoul(valString, nullptr, 16);
 								printf("Jump: jumpOffset: 0x%06X. i: %d\n", jumpOffset, i);
 								
 								ev.cmd = CNV_JUMP;
 								ev.paramOffset = jumpOffset;
+								*/
+								
+								std::string valString=stringMarker.substr(5);
+								uint8_t jumpIndex;
+								readJumpComMarker(valString, &jumpIndex);
+								ev.cmd = CNV_JUMP;
+								ev.param1 = jumpIndex;
+							} else if (stringMarker.substr(0, 9) == "JumpPoint") {
+								uint8_t jumpIndex;
+								readJumpPointMarker(stringMarker, &jumpIndex);
+								ev.cmd = CNV_JUMPPOINT;
+								ev.param1 = jumpIndex;
 							}
 							if (ev.cmd) chn[i].push_back(ev); // empty tracks in Reaper should be deleted before exporting the midi. If your midi avoids channel 10, shift every channel from 11 onwards back by one before exporting, or else there may be an empty track. Even after taking these precautions, it seems that there is always at least one empty track after exporting a midi from Reaper.
 						}
@@ -751,6 +784,7 @@ bool SSeqConv::SaveTrack(FileClass& f, CnvTrack& trinfo)
 	vector<CnvEvent>& data = *trinfo.trackdata;
 	uint lasttime = 0;
 	int simpleLoopOff = f.Tell() - 0x1C; // just in case
+	vector<int> jumpPointOffsetList(0xFF);
 
 	for(uint i = 0; i < data.size(); i ++)
 	{
@@ -771,6 +805,8 @@ bool SSeqConv::SaveTrack(FileClass& f, CnvTrack& trinfo)
 
 		lasttime = ev.time;
 
+		size_t elementsWritten;
+		
 		switch(ev.cmd)
 		{
 			case CNV_NOTE:
@@ -900,9 +936,16 @@ bool SSeqConv::SaveTrack(FileClass& f, CnvTrack& trinfo)
 			case CNV_IF:
 				f.WriteUChar(0xA2);
 				//printf("If event bytes:\n");
-				for (uint8_t singleByte : ev.byteList) {
-					//printf("%02X\n", singleByte);
-					f.WriteUChar(singleByte);
+				if (ev.byteList[0] == 0x94) {
+					//printf("If Jump Code\n");
+					f.WriteUChar(0x94); // JUMP
+					//f.WriteUInt(jumpPointOffsetList[ev.byteList[1]]);
+					f.WriteU24Bit(jumpPointOffsetList[ev.byteList[1]]);
+				} else {
+					for (uint8_t singleByte : ev.byteList) {
+						//printf("%02X\n", singleByte);
+						f.WriteUChar(singleByte);
+					}
 				}
 				break;
 			case CNV_SETVAR:
@@ -942,8 +985,18 @@ bool SSeqConv::SaveTrack(FileClass& f, CnvTrack& trinfo)
 				f.WriteUChar(0xFC);
 				break;
 			case CNV_JUMP:
-				f.WriteUChar(0x94);
-				f.WriteU24Bit(ev.paramOffset);
+				//f.WriteUChar(0x94);
+				//f.WriteU24Bit(ev.paramOffset);
+				
+				//printf("Jump Code\n");
+				f.WriteUChar(0x94); // JUMP
+				//f.WriteUInt(jumpPointOffsetList[ev.param1]);
+				elementsWritten = f.WriteU24Bit((uint32_t)jumpPointOffsetList[ev.param1]);
+				//printf("elementsWritten: %u\n", elementsWritten);
+				break;
+			case CNV_JUMPPOINT:
+				//printf("JumpPoint Code\n");
+				jumpPointOffsetList[ev.param1] = f.Tell() - 0x1C;
 				break;
 		}
 	}
