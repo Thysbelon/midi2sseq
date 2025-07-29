@@ -4,7 +4,7 @@ CPPC=x86_64-w64-mingw32-g++
 all: $(shell mkdir build) midi2sseq.exe
 
 midi2sseq.exe: source/SSeqConv.cpp source/SSeqConv.h source/MidiReader.cpp source/MidiReader.h source/endian.h source/FileClass.h source/main.cpp
-	$(CPPC) source/SSeqConv.cpp source/MidiReader.cpp source/main.cpp -o midi2sseq.exe
+	$(CPPC) -static source/SSeqConv.cpp source/MidiReader.cpp source/main.cpp -o midi2sseq.exe
 
 clean:
 	rm -f *.o *.s *.i *.ii
