@@ -1,7 +1,0 @@
-build/
-*.exe
-*.sseq
-*.o
-*.d
-midi2sseq
-signage-test
