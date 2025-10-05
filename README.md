@@ -13,6 +13,11 @@ Build prerequisites
 
 -->
 
+## Demonstration
+
+This software can be used to make [SiIvagunner mashups, known as "high quality rips"](https://siivagunner.wiki/wiki/Rip), of Nintendo DS music that sound accurate to the sound of the DS.   
+An example of a SiIvagunner-rip that used midi2sseq in its creation is ["Tiny Town"](https://www.youtube.com/watch?v=n07W7zOkKKs), which was created by myself. [The project files for this SiIvagunner-rip can be found here](https://github.com/Thysbelon/midi2sseq/tree/gh-pages/tiny-town-x-quartz-quadrant-good).
+
 ## Supported events
 
 - Note on/off
