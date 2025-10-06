@@ -47,14 +47,15 @@ Ready-to-run copies of ndstool can be downloaded from [Leseratte's website](http
 [Guide on how to open command prompt in a certain folder on Windows](https://www.howtogeek.com/789662/how-to-open-a-cmd-window-in-a-folder-on-windows/).
 
 The terminal commands listed below are examples; please replace placeholders with the names of your files.  
-Instances of `./ndstool` are for linux, Windows users should type `.\ndstool`.
+Instances of `./ndstool` are for linux, Windows users should type `.\ndstool`.    
+The instructions below are not step-by-step, they are only an outline, because the instructions skip a few minor steps relating to file and folder management.
 
 - Use [VGMTrans](https://github.com/vgmtrans/vgmtrans) to find the song you want to edit and to rip the sound bank to sf2
 - Copy and paste the nds file to the same folder, and name the copy something like "Game (header).nds"
 - Run ndstool with the command `./ndstool -x "Game.nds" -d rom-files -9 arm9.bin -7 arm7.bin -y9 arm9overlay.bin  -y7 arm7overlay.bin  -y overlay-files -h "Game (header).nds"` to extract the rom's files
-- Run [SDATTool](https://github.com/froggestspirit/SDATTool) with `python3 SDATTool.py -u sound_data.sdat sdat_out` to extract the SDAT's files
-- Run [sseq2mid](https://github.com/Thysbelon/sseq2mid)
-- Edit the midi in your preferred midi editor. Please use a midi editor that supports multiple tracks in midi files (type 1 midi files). This is needed so that text markers corresponding to sseq commands are placed on the correct tracks.
-- Run [midi2sseq](https://github.com/Thysbelon/midi2sseq/releases/latest). Delete the original sseq in the folder and give your modified version the same filename as the original. Place the outputted sseq in the folder containing the original SDAT's contents (or a copy of that folder).
-- Run SDATTool with `python3 SDATTool.py -b sound_data_modified.sdat sdat_out_modified` to build the files into a new SDAT
-- Place the new SDAT into the folder containing the rom's files. Build a new rom by running ndstool with the command `./ndstool -c "Game-modified.nds" -d rom-files-modified -9 arm9.bin -7 arm7.bin -y9 arm9overlay.bin  -y7 arm7overlay.bin  -y overlay-files -h "Game (header).nds"`
+- Run [SDATTool](https://github.com/froggestspirit/SDATTool) with `python3 SDATTool.py -u sound_data.sdat sdat_contents` to extract the SDAT's files
+- Run [sseq2mid](https://github.com/Thysbelon/sseq2mid) to convert the sseq file containing the song you wish to edit to midi
+- Edit the midi in your preferred midi editor. Please use a midi editor that supports multiple tracks in midi files (type 1 midi files). This is needed so that text markers corresponding to sseq commands are placed on the correct tracks. The [sseq2mid](https://github.com/Thysbelon/sseq2mid) README contains additional info on song editing.
+- Run [midi2sseq](https://github.com/Thysbelon/midi2sseq/releases/latest).<!-- Delete the original sseq in the folder and give your modified version the same filename as the original. Place the outputted sseq in the folder containing the original SDAT's contents (or a copy of that folder). --> Replace the original sseq in the SDAT folder with your modified sseq (it should have the same filename and location).
+- Run SDATTool with `python3 SDATTool.py -b sound_data_modified.sdat sdat_contents_modified` to build the files into a new SDAT
+- In the folder containing the rom's files, replace the original SDAT with your modified SDAT.<!--Place the new SDAT into the folder containing the rom's files.--> Build a new rom by running ndstool with the command `./ndstool -c "Game-modified.nds" -d rom-files-modified -9 arm9.bin -7 arm7.bin -y9 arm9overlay.bin  -y7 arm7overlay.bin  -y overlay-files -h "Game (header).nds"`
