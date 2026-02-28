@@ -50,7 +50,7 @@ The terminal commands listed below are examples; please replace placeholders wit
 Instances of `./ndstool` are for linux, Windows users should type `.\ndstool`.    
 **The instructions below are not step-by-step, they are only an outline**, because the instructions skip a few minor steps relating to file and folder management.
 
-1. Use [VGMTrans](https://github.com/vgmtrans/vgmtrans) to find the song you want to edit and to rip the sound bank to sf2.
+1. Use [VGMTrans](https://github.com/vgmtrans/vgmtrans) (version 1.3 or higher) to find the song you want to edit and to rip the sound bank to sf2.
 2. Copy and paste the nds file to the same folder, and name the copy something like "Game (header).nds".
 3. Run ndstool with the command `./ndstool -x "Game.nds" -d rom-files -9 arm9.bin -7 arm7.bin -y9 arm9overlay.bin  -y7 arm7overlay.bin  -y overlay-files -h "Game (header).nds"` to extract the rom's files.
 4. Run [SDATTool](https://github.com/froggestspirit/SDATTool) with `python3 SDATTool.py -u sound_data.sdat sdat_contents` to extract the SDAT's files.
